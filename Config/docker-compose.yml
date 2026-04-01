@@ -1,0 +1,269 @@
+###############################################################################
+# Docker Compose - Stack Swarm complète
+# 
+# Usage:
+#   docker stack deploy -c docker-compose.yml swarm-stack
+#   docker stack ps swarm-stack
+#   docker stack rm swarm-stack
+#
+# Note: Remplacer les IPs et identifiants par vos valeurs
+###############################################################################
+
+version: '3.9'
+
+services:
+  # =========================================================================
+  # SERVICE : MariaDB (Haute Disponibilité)
+  # =========================================================================
+  mariadb:
+    image: mariadb:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: RootPassword123!
+      MYSQL_DATABASE: app_db
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: AppPassword123!
+    
+    ports:
+      - "3306:3306"
+    
+    volumes:
+      - vol-mariadb:/var/lib/mysql
+    
+    networks:
+      - swarm-network
+    
+    deploy:
+      replicas: 2  # Haute disponibilité avec 2 replicas
+      placement:
+        constraints:
+          - node.role == worker  # Exécuter seulement sur les workers
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # =========================================================================
+  # SERVICE : Nginx (Reverse Proxy & Web Server)
+  # =========================================================================
+  nginx:
+    image: nginx:latest
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    volumes:
+      - vol-nginx:/etc/nginx/conf.d
+      - vol-app:/var/www/html:ro  # Lecture seule pour les fichiers app
+    
+    networks:
+      - swarm-network
+    
+    depends_on:
+      - php-fpm  # Attendre que PHP-FPM soit prêt
+    
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =========================================================================
+  # SERVICE : PHP-FPM (Application Server)
+  # =========================================================================
+  php-fpm:
+    image: php:8.2-fpm
+    
+    environment:
+      MYSQL_HOST: mariadb
+      MYSQL_DATABASE: app_db
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: AppPassword123!
+    
+    volumes:
+      - vol-app:/var/www/html
+    
+    networks:
+      - swarm-network
+    
+    depends_on:
+      - mariadb
+    
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    
+    healthcheck:
+      test: ["CMD", "php-fpm-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =========================================================================
+  # SERVICE : Docker Registry (Repository interne)
+  # =========================================================================
+  registry:
+    image: registry:2
+    
+    ports:
+      - "5000:5000"
+    
+    volumes:
+      - vol-registry:/var/lib/registry
+    
+    networks:
+      - swarm-network
+    
+    environment:
+      REGISTRY_HTTP_ADDR: "0.0.0.0:5000"
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    
+    deploy:
+      replicas: 1  # Un seul registry
+      placement:
+        constraints:
+          - node.role == manager  # Sur le manager pour la stabilité
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+# ============================================================================
+# VOLUMES (Stockage persistant - NFS)
+# ============================================================================
+
+volumes:
+  vol-mariadb:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=192.168.1.20,vers=4,soft,timeo=180
+      device: ":/export/docker/mariadb"
+  
+  vol-nginx:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=192.168.1.20,vers=4,soft,timeo=180
+      device: ":/export/docker/nginx"
+  
+  vol-app:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=192.168.1.20,vers=4,soft,timeo=180
+      device: ":/export/docker/app"
+  
+  vol-registry:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=192.168.1.20,vers=4,soft,timeo=180
+      device: ":/export/docker/registry"
+
+# ============================================================================
+# RÉSEAUX (Communication inter-services)
+# ============================================================================
+
+networks:
+  swarm-network:
+    driver: overlay
+    driver_opts:
+      com.docker.network.driver.overlay.vxlan_list: 4789
+    ipam:
+      config:
+        - subnet: 10.0.9.0/24
+
+###############################################################################
+# NOTES DE DÉPLOIEMENT
+###############################################################################
+
+# 1. PRÉREQUIS :
+#    - Manager Swarm initialisé
+#    - Tous les workers joints au cluster
+#    - Serveur NFS opérationnel sur 192.168.1.20
+#    - Les répertoires /export/docker/* créés sur le serveur NFS
+
+# 2. VARIABLES À ADAPTER :
+#    - Remplacer "192.168.1.20" par l'IP réelle du serveur NFS
+#    - Ajuster les passwords (MYSQL_ROOT_PASSWORD, etc.)
+#    - Modifier les limites de ressources selon votre infrastructure
+#    - Adapter les ports si nécessaire (3306, 80, 443, 5000)
+
+# 3. DÉPLOIEMENT :
+#    docker stack deploy -c docker-compose.yml stack_name
+#
+#    Exemple :
+#    docker stack deploy -c docker-compose.yml app-stack
+
+# 4. VÉRIFICATION :
+#    docker stack ls                    # Lister les stacks
+#    docker stack ps app-stack          # Voir les services et tâches
+#    docker service logs app-stack_mariadb  # Voir les logs
+
+# 5. MISE À JOUR :
+#    # Mettre à jour une image
+#    docker service update --image mariadb:latest app-stack_mariadb
+#
+#    # Forcer un redéploiement
+#    docker service update --force app-stack_nginx
+
+# 6. SUPPRESSION :
+#    docker stack rm app-stack          # Supprime tous les services de la stack
+
+# 7. AVANTAGES DU COMPOSE :
+#    ✓ Configuration déclarative (facile à comprendre et reproduire)
+#    ✓ Gestion des dépendances entre services
+#    ✓ Ports, volumes et réseaux centralisés
+#    ✓ Facile à versionner dans git
+#    ✓ Documentation intégrée
+
+###############################################################################

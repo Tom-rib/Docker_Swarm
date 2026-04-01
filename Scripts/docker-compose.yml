@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  registry:
+    image: registry:2
+    ports:
+      - "5000:5000"
+    volumes:
+      - /swarm-data/registry:/var/lib/registry
+    networks:
+      - swarm-net
+    deploy:
+      placement:
+        constraints: [node.role == worker]
+    environment:
+      - REGISTRY_STORAGE_DELETE_ENABLED=true
+
+  mariadb:
+    image: mariadb:10.6
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: app_db
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+    volumes:
+      - /swarm-data/mariadb:/var/lib/mysql
+    networks:
+      - swarm-net
+    ports:
+      - "3306:3306"
+    deploy:
+      replicas: 3
+      placement:
+        constraints: [node.role == worker]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /swarm-data/nginx/conf:/etc/nginx/conf.d
+      - /swarm-data/nginx/html:/usr/share/nginx/html
+    networks:
+      - swarm-net
+    deploy:
+      replicas: 3
+      placement:
+        constraints: [node.role == worker]
+    depends_on:
+      - php
+
+  php:
+    image: php:8.1-fpm-alpine
+    volumes:
+      - /swarm-data/php/app:/app
+    networks:
+      - swarm-net
+    environment:
+      MYSQL_HOST: mariadb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+      MYSQL_DATABASE: app_db
+    deploy:
+      replicas: 3
+      placement:
+        constraints: [node.role == worker]
+
+  vscode:
+    image: codercom/code-server:latest
+    environment:
+      PASSWORD: vscodepassword
+    ports:
+      - "8443:8443"
+    volumes:
+      - /swarm-data/vscode:/home/coder/project
+    networks:
+      - swarm-net
+    deploy:
+      placement:
+        constraints: [node.role == worker]
+
+networks:
+  swarm-net:
+    driver: overlay
+    driver_opts:
+      com.docker.network.driver.overlay.vxlanid: 4096

@@ -1,0 +1,248 @@
+# Docker Swarm Project - .gitignore
+
+# ============================================================================
+# Variables d'Environnement (Secrets à ne pas committer)
+# ============================================================================
+
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Fichiers de configuration avec secrets
+config/.env
+config/.env.*
+
+# Tokens Swarm
+/tokens/
+*.token
+swarm-tokens.txt
+
+# ============================================================================
+# Données Sensibles
+# ============================================================================
+
+# Certificats SSL
+*.pem
+*.key
+*.crt
+*.key.pem
+ssl/
+certs/
+
+# Fichiers de sauvegarde
+*.backup
+*.bak
+*.sql
+*.tar.gz
+backups/
+dumps/
+
+# Logs de test
+test-results/
+*.log
+
+# ============================================================================
+# Fichiers OS
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+
+# Linux
+*~
+.~*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# ============================================================================
+# IDE et Editeurs
+# ============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# VIM
+.vim/
+.swp
+.swo
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime
+*.sublime-project
+*.sublime-workspace
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================================================
+# Fichiers Générés Localement
+# ============================================================================
+
+# Cache
+__pycache__/
+*.pyc
+*.class
+*.o
+node_modules/
+
+# Builds
+dist/
+build/
+*.egg-info/
+
+# Fichiers temporaires
+tmp/
+temp/
+*.tmp
+
+# ============================================================================
+# Docker
+# ============================================================================
+
+# Images locales (ne pas committer)
+docker-images/
+*.tar
+
+# Contextes de build
+docker/build-context/
+
+# ============================================================================
+# Données de Base de Données
+# ============================================================================
+
+# Dumps MySQL
+*.sql
+*.sql.gz
+database/dumps/
+
+# Fichiers de données
+data/
+volumes/
+
+# ============================================================================
+# Fichiers de Test et Résultats
+# ============================================================================
+
+# Résultats de test
+test-results/
+coverage/
+.coverage
+htmlcov/
+
+# Fichiers de test temporaires
+tests/tmp/
+
+# ============================================================================
+# Documentation Générée
+# ============================================================================
+
+# Docs générées
+docs/_build/
+site/
+
+# PDFs générés
+*.pdf
+
+# ============================================================================
+# CI/CD
+# ============================================================================
+
+# Fichiers de build CI
+.gitlab-ci-variables
+.github/secrets/
+
+# Artefacts CI
+ci-artifacts/
+
+# ============================================================================
+# Historiques et Caches
+# ============================================================================
+
+# Bash history
+.bash_history
+.zsh_history
+
+# Git
+.git/
+.gitmodules
+
+# Caches npm/yarn
+.npm/
+.yarn/cache/
+
+# ============================================================================
+# Fichiers Projet Spécifiques
+# ============================================================================
+
+# Notes personnelles
+NOTES_PERSONNELLES.md
+notes/
+TODO.md
+
+# Fichiers de travail
+*.work
+*.draft
+
+# Configurations testées localement (à ne pas partager)
+config/local/
+
+# ============================================================================
+# INCLURE MALGRÉ GITIGNORE
+# ============================================================================
+
+# Fichiers d'exemple (inclure ceux-ci)
+!config/.env.example
+!config/.env.*.example
+!.gitignore
+!.gitkeep
+
+# Documentation (toujours inclure)
+!README.md
+!*.md
+
+# Scripts publics (toujours inclure)
+!scripts/
+!scripts/*.sh
+
+# Configurations publiques (toujours inclure)
+!config/docker-compose.yml
+!config/nginx.conf
+
+###############################################################################
+# NOTES IMPORTANTES
+###############################################################################
+
+# 1. SECRETS SENSIBLES :
+#    - Mots de passe
+#    - Tokens API
+#    - Certificats SSL
+#    - Fichiers .env
+#    Utiliser vault/secrets manager pour la production
+
+# 2. VCS MODERNE (GitHub/GitLab) :
+#    Préférer les secrets dans l'interface (Settings > Secrets)
+#    Plutôt que dans le dépôt git
+
+# 3. BRANCHES DE DÉVELOPPEMENT :
+#    - Créer des branches .env.local
+#    - Ne pas committer de configurations locales
+
+# 4. VÉRIFIER AVANT COMMIT :
+#    git diff --staged | grep -E "(password|token|secret|key)"
+#    Si résultat : NE PAS committer !
+
+###############################################################################
