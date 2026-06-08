@@ -302,16 +302,12 @@ services:
       MYSQL_DATABASE: app_db
       MYSQL_USER: appuser
       MYSQL_PASSWORD: AppPassword123!
-    
     ports:
       - "3306:3306"
-    
     volumes:
       - /mnt/nfs/database:/var/lib/mysql
-    
     networks:
       - swarm-network
-    
     deploy:
       replicas: 1
       placement:
@@ -327,22 +323,47 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 5
+        max_attempts: 3
+        window: 120s
+
+  php-fpm:
+    image: php:8.2-fpm
+    environment:
+      MYSQL_HOST: mariadb
+      MYSQL_DATABASE: app_db
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: AppPassword123!
+    volumes:
+      - /mnt/nfs/swarm:/var/www/html
+    networks:
+      - swarm-network
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
         window: 120s
 
   nginx:
     image: nginx:latest
-    
     ports:
       - "80:80"
       - "443:443"
-    
     volumes:
       - /mnt/nfs/swarm:/usr/share/nginx/html
-    
     networks:
       - swarm-network
-    
     deploy:
       replicas: 2
       placement:
@@ -358,25 +379,19 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 5
-        window: 120s
+        max_attempts: 3
 
   registry:
     image: registry:2
-    
     ports:
       - "5000:5000"
-    
     volumes:
       - /mnt/nfs/registry:/var/lib/registry
-    
     networks:
       - swarm-network
-    
     environment:
       REGISTRY_HTTP_ADDR: "0.0.0.0:5000"
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
-    
     deploy:
       replicas: 1
       placement:
@@ -389,12 +404,40 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 5
+        max_attempts: 3
+        window: 120s
+
+  vscode:
+    image: codercom/code-server:latest
+    ports:
+      - "8443:8080"
+    environment:
+      PASSWORD: vscodepassword
+      SUDO_PASSWORD: vscodepassword
+    volumes:
+      - /mnt/nfs/swarm:/home/coder/project
+    networks:
+      - swarm-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
         window: 120s
 
 networks:
   swarm-network:
     driver: overlay
+    driver_opts:
+      com.docker.network.driver.overlay.vxlan_list: 4789
     ipam:
       config:
         - subnet: 10.0.9.0/24
