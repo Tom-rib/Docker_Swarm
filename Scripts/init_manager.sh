@@ -4,7 +4,7 @@
 # Script : init_manager.sh
 # Description : Initialiser un nœud en tant que Manager Swarm
 # Utilisation : sudo bash init_manager.sh <MANAGER_IP>
-# Exemple : sudo bash init_manager.sh 192.168.1.10
+# Exemple : sudo bash init_manager.sh 192.168.136.100
 #############################################################################
 
 set -e  # Arrêter si une erreur survient
@@ -37,7 +37,7 @@ print_warning() {
 if [ -z "$1" ]; then
     print_error "IP du Manager non fournie"
     echo "Usage: sudo bash init_manager.sh <MANAGER_IP>"
-    echo "Exemple: sudo bash init_manager.sh 192.168.1.10"
+    echo "Exemple: sudo bash init_manager.sh 192.168.136.100"
     exit 1
 fi
 
