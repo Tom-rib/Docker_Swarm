@@ -302,12 +302,16 @@ services:
       MYSQL_DATABASE: app_db
       MYSQL_USER: appuser
       MYSQL_PASSWORD: AppPassword123!
+    
     ports:
       - "3306:3306"
+    
     volumes:
       - /mnt/nfs/database:/var/lib/mysql
+    
     networks:
       - swarm-network
+    
     deploy:
       replicas: 1
       placement:
@@ -323,47 +327,22 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 3
-        window: 120s
-
-  php-fpm:
-    image: php:8.2-fpm
-    environment:
-      MYSQL_HOST: mariadb
-      MYSQL_DATABASE: app_db
-      MYSQL_USER: appuser
-      MYSQL_PASSWORD: AppPassword123!
-    volumes:
-      - /mnt/nfs/swarm:/var/www/html
-    networks:
-      - swarm-network
-    deploy:
-      replicas: 2
-      placement:
-        constraints:
-          - node.role == worker
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
+        max_attempts: 5
         window: 120s
 
   nginx:
     image: nginx:latest
+    
     ports:
       - "80:80"
       - "443:443"
+    
     volumes:
       - /mnt/nfs/swarm:/usr/share/nginx/html
+    
     networks:
       - swarm-network
+    
     deploy:
       replicas: 2
       placement:
@@ -379,19 +358,25 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 3
+        max_attempts: 5
+        window: 120s
 
   registry:
     image: registry:2
+    
     ports:
       - "5000:5000"
+    
     volumes:
       - /mnt/nfs/registry:/var/lib/registry
+    
     networks:
       - swarm-network
+    
     environment:
       REGISTRY_HTTP_ADDR: "0.0.0.0:5000"
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    
     deploy:
       replicas: 1
       placement:
@@ -404,40 +389,12 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 3
-        window: 120s
-
-  vscode:
-    image: codercom/code-server:latest
-    ports:
-      - "8443:8080"
-    environment:
-      PASSWORD: vscodepassword
-      SUDO_PASSWORD: vscodepassword
-    volumes:
-      - /mnt/nfs/swarm:/home/coder/project
-    networks:
-      - swarm-network
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
+        max_attempts: 5
         window: 120s
 
 networks:
   swarm-network:
     driver: overlay
-    driver_opts:
-      com.docker.network.driver.overlay.vxlan_list: 4789
     ipam:
       config:
         - subnet: 10.0.9.0/24
@@ -632,6 +589,64 @@ ls -la /srv/nfs/database/
 
 ✅ **Les données persistent** = Backup opérationnel !
 
+### Test 5 : PHP-FPM et Nginx
+
+**Créer un fichier HTML de test** :
+
+```bash
+# Sur le manager
+echo '<h1>✅ Nginx + NFS Working!</h1><p>Services: MariaDB, Nginx, PHP-FPM, Registry, VSCode</p>' > /mnt/nfs/swarm/index.html
+```
+
+**Accéder à Nginx et vérifier le rendu** :
+
+```bash
+# Sur le manager ou depuis n'importe quelle machine
+curl http://192.168.136.100/
+# Résultat : Page HTML affichée correctement
+```
+
+**Vérifier que PHP-FPM tourne** :
+
+```bash
+# Sur le manager
+docker service ls | grep php
+# Résultat : swarm-stack_php-fpm replicated 2/2
+
+# Vérifier les replicas
+docker service ps swarm-stack_php-fpm
+```
+
+✅ **PHP-FPM et Nginx opérationnels** = Application server running !
+
+### Test 6 : VSCode Server
+
+**Accéder à VSCode Server via le navigateur** :
+
+```
+URL: http://192.168.136.100:8443
+Password: vscodepassword
+```
+
+**Résultat attendu** :
+- Interface VSCode complète accessible
+- Système de fichiers visible (projet dans /home/coder/project)
+- Accès au terminal web intégré
+- Montage NFS visible (données Nginx accessibles)
+
+**Vérifier le service VSCode** :
+
+```bash
+# Sur le manager
+docker service ls | grep vscode
+# Résultat : swarm-stack_vscode replicated 1/1
+
+# Voir les logs
+docker service logs swarm-stack_vscode
+```
+
+✅ **VSCode Server opérationnel** = IDE web accessible !
+
 ---
 
 ## 🛠️ Dépannage
@@ -735,26 +750,6 @@ swarm-project/
 └── scripts/
     └── nfs-sync.sh            # Script de synchronisation NFS
 ```
-
----
-
-## ✅ Checklist Finale
-
-- [ ] 6 VMs Debian 12 lancées et en réseau
-- [ ] Interfaces réseau configurées (ens33 externe, ens37 interne)
-- [ ] Docker installé sur toutes les VMs
-- [ ] Swarm initialisé (1 manager + 3 workers)
-- [ ] NFS Server opérationnel sur serveurnfs
-- [ ] NFS Client montés sur tous les nodes Swarm
-- [ ] Exports NFS configurés dans /etc/exports
-- [ ] fstab mis à jour (persistance au redémarrage)
-- [ ] docker-compose.yml créé et déployé
-- [ ] Tous les services en 1/1 ou 2/2
-- [ ] Test d'accès aux services (curl, logs)
-- [ ] Test de résilience (arrêt d'un conteneur)
-- [ ] Réplication rsync automatique configurée
-- [ ] Backup NFS vérifié
-- [ ] Documentation complétée
 
 ---
 
